@@ -1,0 +1,80 @@
+@page "/"
+@implements IDisposable
+@inject QueueService Queue
+
+<PageTitle>รับบัตรคิว</PageTitle>
+
+<section class="hero">
+    <div><h1>รับบัตรคิวออนไลน์</h1>
+    <p>เลือกบริการที่ต้องการ แล้วรอเรียกตามหมายเลขบนบัตรคิว</p></div>
+    <div class="paper-art" aria-hidden="true"><i></i><b>Q</b></div>
+</section>
+
+<div class="grid two">
+    <div class="card">
+        <h2>ข้อมูลการรับบริการ</h2>
+
+        <label for="customer">ชื่อผู้รับบริการ</label>
+        <input class="input" id="customer" @bind="name" placeholder="เช่น สมชาย ใจดี (ไม่ใส่ก็ได้)" />
+
+        <div class="field-label" id="service-label">ประเภทบริการ</div>
+        <div class="services" role="group" aria-labelledby="service-label">
+            @foreach (var s in QueueService.ServiceTypes)
+            {
+                <button class="service @(selected == s.Code ? "active" : "")" aria-pressed="@(selected == s.Code ? "true" : "false")" @onclick="() => selected = s.Code">
+                    <span class="letter">@s.Code</span>
+                    <span>@s.Name</span>
+                </button>
+            }
+        </div>
+
+        <label for="remark">หมายเหตุ</label>
+        <input class="input" id="remark" @bind="remark" placeholder="(ถ้ามี)" />
+
+        <button class="btn primary big" @onclick="Take">รับบัตรคิว</button>
+
+        @if (ticket is not null)
+        {
+            <div class="ticket" role="status">
+                <div class="ticket-label">หมายเลขคิวของคุณ</div>
+                <div class="ticket-number">@ticket.Number</div>
+                <div>@ticket.Service.Name</div>
+                <div class="muted">@ticket.CustomerName · @ticket.CreatedAt.ToString("HH:mm:ss")</div>
+            </div>
+        }
+    </div>
+
+    <div class="card board">
+        <h2>กำลังให้บริการ</h2>
+        @foreach (var s in QueueService.ServiceTypes)
+        {
+            var current = Queue.GetCurrent(s.Code);
+            var waiting = Queue.GetToday(s.Code).Count(t => t.Status == QueueStatus.Waiting);
+            <div class="board-row">
+                <div>
+                    <div class="board-service"><span class="letter">@s.Code</span> @s.Name</div>
+                    <div class="muted">รอ @waiting คิว</div>
+                </div>
+                <div class="board-number @(current is null ? "dim" : "")">@(current?.Number ?? "—")</div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string selected = QueueService.ServiceTypes[0].Code;
+    private string name = "";
+    private string? remark;
+    private QueueTicket? ticket;
+
+    protected override void OnInitialized() => Queue.OnChange += Refresh;
+
+    private void Take()
+    {
+        ticket = Queue.Create(selected, name, remark);
+        name = ""; remark = null;
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Queue.OnChange -= Refresh;
+}

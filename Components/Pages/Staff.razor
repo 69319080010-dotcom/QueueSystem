@@ -1,0 +1,122 @@
+@page "/staff"
+@implements IDisposable
+@inject QueueService Queue
+
+<PageTitle>เจ้าหน้าที่</PageTitle>
+
+<section class="hero">
+    <div><h1>เคาน์เตอร์เจ้าหน้าที่</h1>
+    <p>เรียกคิวที่สร้างก่อนสุดตามวันที่และประเภทบริการที่เลือก</p></div>
+    <div class="paper-art" aria-hidden="true"><i></i><b>Q</b></div>
+</section>
+
+<div>
+    <label for="queue-date">วันที่ของคิว</label>
+    <input id="queue-date" class="input" type="date" required
+           style="width: auto; max-width: 100%; margin-bottom: 1rem;"
+           @bind="selectedDate" @bind:format="yyyy-MM-dd" @bind:after="ClearMessage" />
+</div>
+
+<div class="tabs">
+    @foreach (var s in QueueService.ServiceTypes)
+    {
+        <button class="tab @(service == s.Code ? "active" : "")" @onclick="() => Select(s.Code)"><span class="letter">@s.Code</span> @s.Name</button>
+    }
+</div>
+
+@{
+    var day = SelectedDay;
+    var current = day is { } currentDay ? Queue.GetCurrent(service, currentDay) : null;
+    var list = day is { } listDay ? Queue.GetByDate(listDay, service) : new List<QueueTicket>();
+}
+<div class="grid staff">
+    <div class="card center">
+        <h2>คิวปัจจุบัน</h2>
+        <div class="current @(current is null ? "dim" : "")">@(current?.Number ?? "—")</div>
+        @if (current is not null)
+        {
+            <div class="muted">@current.CustomerName</div>
+            <button class="btn success" @onclick="() => Queue.Complete(current.Id)">เสร็จสิ้น</button>
+        }
+        <button class="btn primary big" disabled="@(day is null)" @onclick="CallNext">เรียกคิวถัดไป →</button>
+        @if (message is not null) { <div class="notice" role="status">@message</div> }
+    </div>
+
+    <div class="card">
+        <h2>รายการคิว @day?.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)</h2>
+        @if (day is null)
+        {
+            <p class="empty">เลือกวันที่เพื่อดูรายการคิว</p>
+        }
+        else if (list.Count == 0)
+        {
+            <p class="empty">ยังไม่มีคิวในวันที่และประเภทบริการที่เลือก</p>
+        }
+        else
+        {
+            <div class="scroll"><table>
+                <thead><tr><th>คิว</th><th>ชื่อ</th><th>เวลา</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+                <tbody>
+                @foreach (var t in list)
+                {
+                    <tr>
+                        <td><b>@t.Number</b></td>
+                        <td>
+                            @t.CustomerName
+                            @if (!string.IsNullOrWhiteSpace(t.Remark))
+                            {
+                                <small class="row-note">@t.Remark</small>
+                            }
+                        </td>
+                        <td>@t.CreatedAt.ToString("HH:mm:ss")</td>
+                        <td><span class="badge @t.Status.ToString().ToLower()">@StatusText(t.Status)</span></td>
+                        <td>
+                            @if (t.Status == QueueStatus.Waiting)
+                            {
+                                <button class="btn danger small" @onclick="() => CancelTicket(t.Id)">ยกเลิก</button>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table></div>
+        }
+    </div>
+</div>
+
+@code {
+    private string service = QueueService.ServiceTypes[0].Code;
+    private string? message;
+    private DateTime? selectedDate = DateTime.Today;
+    private DateOnly? SelectedDay => selectedDate is { } date ? DateOnly.FromDateTime(date) : null;
+
+    protected override void OnInitialized() => Queue.OnChange += Refresh;
+
+    private void Select(string code)
+    {
+        service = code;
+        ClearMessage();
+    }
+
+    private void ClearMessage() => message = null;
+
+    private void CallNext()
+    {
+        if (SelectedDay is not { } day) return;
+        var t = Queue.CallNext(service, day);
+        message = t is null ? "ไม่มีคิวที่รอเรียกในวันที่และประเภทบริการที่เลือก" : $"เรียกคิว {t.Number} แล้ว";
+    }
+
+    private void CancelTicket(Guid id) => Queue.Cancel(id, "ยกเลิกโดยเจ้าหน้าที่");
+
+    private static string StatusText(QueueStatus s) => s switch
+    {
+        QueueStatus.Waiting => "รอเรียก",
+        QueueStatus.Called => "เรียกแล้ว",
+        QueueStatus.Completed => "เสร็จสิ้น",
+        _ => "ยกเลิก"
+    };
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Queue.OnChange -= Refresh;
+}

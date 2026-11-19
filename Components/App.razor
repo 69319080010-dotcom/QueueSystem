@@ -11,6 +11,15 @@
 </head>
 <body>
     <Routes @rendermode="InteractiveServer" />
-    <script src="_framework/blazor.web.js"></script>
+    <script src="@BlazorScript"></script>
 </body>
 </html>
+
+@code {
+    private string BlazorScript =>
+#if NET9_0_OR_GREATER
+        Assets["_framework/blazor.web.js"];
+#else
+        "_framework/blazor.web.js";
+#endif
+}

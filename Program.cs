@@ -3,6 +3,12 @@ using QueueSystem.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Vercel supplies the port at runtime. Local Docker retains ASPNETCORE_HTTP_PORTS.
+if (int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var port) && port is >= 1 and <= 65535)
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 var databasePath = builder.Configuration["QueueDatabase:Path"];
 builder.Services.AddSingleton(_ => new QueueService(Path.GetFullPath(

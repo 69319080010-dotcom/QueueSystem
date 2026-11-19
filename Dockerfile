@@ -1,8 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /source
-COPY QueueSystem.csproj ./
-RUN dotnet restore QueueSystem.csproj -p:QueueTargetFramework=net10.0
 COPY . .
+RUN dotnet restore QueueSystem.csproj -p:QueueTargetFramework=net10.0
 RUN dotnet publish QueueSystem.csproj -c Release -p:QueueTargetFramework=net10.0 --no-restore -o /publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

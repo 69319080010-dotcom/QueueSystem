@@ -19,6 +19,9 @@ var app = builder.Build();
 _ = app.Services.GetRequiredService<QueueService>();
 
 app.UseStaticFiles();
+#if NET9_0_OR_GREATER
+app.MapStaticAssets();
+#endif
 app.UseAntiforgery();
 
 // ---------- Backend: REST API ----------

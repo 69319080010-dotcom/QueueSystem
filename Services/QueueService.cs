@@ -95,7 +95,9 @@ public class QueueService
     public QueueTicket? CallNext(string serviceCode, DateOnly? date = null)
     {
         using var connection = Open();
+        using var transaction = connection.BeginTransaction(deferred: false);
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = $"""
             UPDATE queue_tickets
             SET status = $called, called_ticks = $now
@@ -114,6 +116,7 @@ public class QueueService
         command.Parameters.AddWithValue("$called", Called);
         command.Parameters.AddWithValue("$now", DateTime.Now.Ticks);
         var ticket = ReadTickets(command).SingleOrDefault();
+        transaction.Commit();
         if (ticket is not null) OnChange?.Invoke();
         return ticket;
     }
@@ -127,7 +130,9 @@ public class QueueService
     private bool Update(Guid id, QueueStatus from, QueueStatus to, string? remark)
     {
         using var connection = Open();
+        using var transaction = connection.BeginTransaction(deferred: false);
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             UPDATE queue_tickets
             SET status = $to, remark = COALESCE($remark, remark)
@@ -138,6 +143,7 @@ public class QueueService
         command.Parameters.AddWithValue("$to", (int)to);
         command.Parameters.AddWithValue("$remark", string.IsNullOrWhiteSpace(remark) ? DBNull.Value : remark);
         if (command.ExecuteNonQuery() != 1) return false;
+        transaction.Commit();
         OnChange?.Invoke();
         return true;
     }
